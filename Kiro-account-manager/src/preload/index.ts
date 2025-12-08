@@ -279,6 +279,32 @@ const api = {
     error?: string
   }> => {
     return ipcRenderer.invoke('machine-id:restore-from-file')
+  },
+
+  // ============ 自动更新 ============
+  
+  // 检查更新
+  checkForUpdates: (): Promise<{
+    hasUpdate: boolean
+    currentVersion?: string
+    latestVersion?: string
+    releaseNotes?: string
+    releaseName?: string
+    releaseUrl?: string
+    publishedAt?: string
+    assets?: Array<{
+      name: string
+      downloadUrl: string
+      size: number
+    }>
+    error?: string
+  }> => {
+    return ipcRenderer.invoke('check-for-updates')
+  },
+
+  // 打开发布页面
+  openReleasePage: (url: string): Promise<void> => {
+    return ipcRenderer.invoke('open-release-page', url)
   }
 }
 

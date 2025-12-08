@@ -5,14 +5,38 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Release version (e.g., 1.1.0)'
-        required: false
-        default: ''
+
+# 设置工作目录
+env:
+  WORKING_DIR: Kiro-account-manager
 
 jobs:
+  # 获取版本号
+  get-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+      tag_name: ${{ steps.get_version.outputs.tag_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get version from package.json
+        id: get_version
+        working-directory: ${{ env.WORKING_DIR }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            TAG_NAME="${{ github.ref_name }}"
+          else
+            TAG_NAME="v$VERSION"
+          fi
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION, Tag: $TAG_NAME"
+
   build-windows:
+    needs: get-version
     runs-on: windows-latest
     strategy:
       matrix:
@@ -26,14 +50,18 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
+          cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
 
       - name: Install dependencies
+        working-directory: ${{ env.WORKING_DIR }}
         run: npm ci
 
       - name: Build
+        working-directory: ${{ env.WORKING_DIR }}
         run: npm run build
 
       - name: Package Windows ${{ matrix.arch }}
+        working-directory: ${{ env.WORKING_DIR }}
         run: npx electron-builder --win --${{ matrix.arch }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -43,11 +71,12 @@ jobs:
         with:
           name: windows-${{ matrix.arch }}
           path: |
-            dist/*.exe
-            dist/*.zip
+            ${{ env.WORKING_DIR }}/dist/*.exe
+            ${{ env.WORKING_DIR }}/dist/*.zip
           if-no-files-found: ignore
 
   build-windows-arm64:
+    needs: get-version
     runs-on: windows-latest
     steps:
       - name: Checkout
@@ -58,14 +87,18 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
+          cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
 
       - name: Install dependencies
+        working-directory: ${{ env.WORKING_DIR }}
         run: npm ci
 
       - name: Build
+        working-directory: ${{ env.WORKING_DIR }}
         run: npm run build
 
       - name: Package Windows ARM64
+        working-directory: ${{ env.WORKING_DIR }}
         run: npx electron-builder --win --arm64
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -75,11 +108,12 @@ jobs:
         with:
           name: windows-arm64
           path: |
-            dist/*.exe
-            dist/*.zip
+            ${{ env.WORKING_DIR }}/dist/*.exe
+            ${{ env.WORKING_DIR }}/dist/*.zip
           if-no-files-found: ignore
 
   build-macos:
+    needs: get-version
     runs-on: macos-latest
     strategy:
       matrix:
@@ -93,14 +127,18 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
+          cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
 
       - name: Install dependencies
+        working-directory: ${{ env.WORKING_DIR }}
         run: npm ci
 
       - name: Build
+        working-directory: ${{ env.WORKING_DIR }}
         run: npm run build
 
       - name: Package macOS ${{ matrix.arch }}
+        working-directory: ${{ env.WORKING_DIR }}
         run: npx electron-builder --mac --${{ matrix.arch }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -110,11 +148,12 @@ jobs:
         with:
           name: macos-${{ matrix.arch }}
           path: |
-            dist/*.dmg
-            dist/*.zip
+            ${{ env.WORKING_DIR }}/dist/*.dmg
+            ${{ env.WORKING_DIR }}/dist/*.zip
           if-no-files-found: ignore
 
   build-linux:
+    needs: get-version
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -128,14 +167,18 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
+          cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
 
       - name: Install dependencies
+        working-directory: ${{ env.WORKING_DIR }}
         run: npm ci
 
       - name: Build
+        working-directory: ${{ env.WORKING_DIR }}
         run: npm run build
 
       - name: Package Linux ${{ matrix.arch }}
+        working-directory: ${{ env.WORKING_DIR }}
         run: npx electron-builder --linux --${{ matrix.arch }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -145,14 +188,14 @@ jobs:
         with:
           name: linux-${{ matrix.arch }}
           path: |
-            dist/*.AppImage
-            dist/*.deb
-            dist/*.snap
-            dist/*.tar.gz
+            ${{ env.WORKING_DIR }}/dist/*.AppImage
+            ${{ env.WORKING_DIR }}/dist/*.deb
+            ${{ env.WORKING_DIR }}/dist/*.snap
+            ${{ env.WORKING_DIR }}/dist/*.tar.gz
           if-no-files-found: ignore
 
   release:
-    needs: [build-windows, build-windows-arm64, build-macos, build-linux]
+    needs: [get-version, build-windows, build-windows-arm64, build-macos, build-linux]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
@@ -172,6 +215,8 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
+          name: Kiro Account Manager v${{ needs.get-version.outputs.version }}
+          tag_name: ${{ needs.get-version.outputs.tag_name }}
           draft: false
           prerelease: false
           generate_release_notes: true
