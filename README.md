@@ -270,6 +270,11 @@ The project is configured with GitHub Actions workflow for auto building all pla
 ---
 
 ## 📋 Changelog
+### v1.3.6 (2025-01-17)
+- 🔑 **API Key Persistence**: API Key is now persisted and preserved after app restart
+- 👁️ **API Key Show/Hide**: Added toggle to show/hide API Key in input field
+- 🚀 **Auto Start Fix**: Fixed "Auto Start" feature not working properly
+- 📋 **API Key Copy**: One-click copy button for API Key
 
 ### v1.3.5 (2025-01-17)
 - 🌐 **API Proxy Page i18n**: API Proxy Service page now supports English/Chinese language switching

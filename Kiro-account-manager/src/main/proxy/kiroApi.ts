@@ -539,8 +539,8 @@ async function parseEventStream(
             }
             
             // 调试：打印所有事件类型
-            if (eventType && !['contentBlockDelta', 'contentBlockStart', 'contentBlockStop', 'messageStart', 'messageStop'].includes(eventType)) {
-              console.log('[Kiro] Event:', eventType, JSON.stringify(event).substring(0, 200))
+            if (eventType && !['contentBlockDelta', 'contentBlockStart', 'contentBlockStop', 'messageStart', 'messageStop', 'assistantResponseEvent'].includes(eventType)) {
+              console.log('[Kiro] Event:', eventType, JSON.stringify(event))
             }
             
             // 处理 usageEvent
@@ -592,6 +592,7 @@ async function parseEventStream(
       })
     }
     
+    console.log('[Kiro] Stream complete, final usage:', JSON.stringify(usage))
     onComplete(usage)
   } catch (error) {
     onError(error as Error)

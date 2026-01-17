@@ -627,10 +627,12 @@ export class ProxyServer {
       this.stats.failedRequests++
       this.sendError(res, 503, 'No available accounts')
       this.events.onResponse?.({ path: '/v1/chat/completions', status: 503, error: 'No available accounts' })
+      this.recordRequest({ path: '/v1/chat/completions', model: request.model, success: false, error: 'No available accounts' })
       return
     }
 
     this.events.onRequest?.({ path: '/v1/chat/completions', method: 'POST', accountId: account.id })
+    const startTime = Date.now()
 
     try {
       // 转换为 Kiro 格式
@@ -638,7 +640,7 @@ export class ProxyServer {
 
       if (request.stream) {
         // 流式响应（流式不使用重试机制，错误由流处理）
-        await this.handleOpenAIStream(res, account, kiroPayload, request.model)
+        await this.handleOpenAIStream(res, account, kiroPayload, request.model, startTime)
       } else {
         // 非流式响应（带重试机制）
         const { result, account: usedAccount } = await this.callWithRetry(
@@ -655,9 +657,10 @@ export class ProxyServer {
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify(response))
         this.events.onResponse?.({ path: '/v1/chat/completions', status: 200, tokens: result.usage.inputTokens + result.usage.outputTokens })
+        this.recordRequest({ path: '/v1/chat/completions', model: request.model, accountId: usedAccount.id, inputTokens: result.usage.inputTokens, outputTokens: result.usage.outputTokens, responseTime: Date.now() - startTime, success: true })
       }
     } catch (error) {
-      this.handleApiError(res, account, error as Error, '/v1/chat/completions')
+      this.handleApiError(res, account, error as Error, '/v1/chat/completions', request.model, startTime)
     }
   }
 
@@ -666,7 +669,8 @@ export class ProxyServer {
     res: http.ServerResponse,
     account: { id: string; accessToken: string; profileArn?: string },
     kiroPayload: ReturnType<typeof openaiToKiro>,
-    model: string
+    model: string,
+    startTime: number
   ): Promise<void> {
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
@@ -725,6 +729,7 @@ export class ProxyServer {
           this.stats.totalTokens += usage.inputTokens + usage.outputTokens
           this.accountPool.recordSuccess(account.id, usage.inputTokens + usage.outputTokens)
           this.events.onResponse?.({ path: '/v1/chat/completions', status: 200, tokens: usage.inputTokens + usage.outputTokens })
+          this.recordRequest({ path: '/v1/chat/completions', model, accountId: account.id, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, responseTime: Date.now() - startTime, success: true })
           resolve()
         },
         (error) => {
@@ -736,6 +741,7 @@ export class ProxyServer {
           const isQuotaError = error.message.includes('429') || error.message.includes('quota')
           this.accountPool.recordError(account.id, isQuotaError)
           this.events.onResponse?.({ path: '/v1/chat/completions', status: 500, error: error.message })
+          this.recordRequest({ path: '/v1/chat/completions', model, accountId: account.id, responseTime: Date.now() - startTime, success: false, error: error.message })
           resolve()
         }
       )
@@ -756,10 +762,12 @@ export class ProxyServer {
       this.stats.failedRequests++
       this.sendError(res, 503, 'No available accounts')
       this.events.onResponse?.({ path: '/v1/messages', status: 503, error: 'No available accounts' })
+      this.recordRequest({ path: '/v1/messages', model: request.model, success: false, error: 'No available accounts' })
       return
     }
 
     this.events.onRequest?.({ path: '/v1/messages', method: 'POST', accountId: account.id })
+    const startTime = Date.now()
 
     try {
       // 转换为 Kiro 格式
@@ -767,7 +775,7 @@ export class ProxyServer {
 
       if (request.stream) {
         // 流式响应（流式不使用重试机制，错误由流处理）
-        await this.handleClaudeStream(res, account, kiroPayload, request.model)
+        await this.handleClaudeStream(res, account, kiroPayload, request.model, startTime)
       } else {
         // 非流式响应（带重试机制）
         const { result, account: usedAccount } = await this.callWithRetry(
@@ -784,9 +792,10 @@ export class ProxyServer {
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify(response))
         this.events.onResponse?.({ path: '/v1/messages', status: 200, tokens: result.usage.inputTokens + result.usage.outputTokens })
+        this.recordRequest({ path: '/v1/messages', model: request.model, accountId: usedAccount.id, inputTokens: result.usage.inputTokens, outputTokens: result.usage.outputTokens, responseTime: Date.now() - startTime, success: true })
       }
     } catch (error) {
-      this.handleApiError(res, account, error as Error, '/v1/messages')
+      this.handleApiError(res, account, error as Error, '/v1/messages', request.model, startTime)
     }
   }
 
@@ -795,7 +804,8 @@ export class ProxyServer {
     res: http.ServerResponse,
     account: { id: string; accessToken: string; profileArn?: string },
     kiroPayload: ReturnType<typeof claudeToKiro>,
-    model: string
+    model: string,
+    startTime: number
   ): Promise<void> {
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
@@ -891,6 +901,7 @@ export class ProxyServer {
           this.stats.totalTokens += usage.inputTokens + usage.outputTokens
           this.accountPool.recordSuccess(account.id, usage.inputTokens + usage.outputTokens)
           this.events.onResponse?.({ path: '/v1/messages', status: 200, tokens: usage.inputTokens + usage.outputTokens })
+          this.recordRequest({ path: '/v1/messages', model, accountId: account.id, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, responseTime: Date.now() - startTime, success: true })
           resolve()
         },
         (error) => {
@@ -905,6 +916,7 @@ export class ProxyServer {
           const isQuotaError = error.message.includes('429') || error.message.includes('quota')
           this.accountPool.recordError(account.id, isQuotaError)
           this.events.onResponse?.({ path: '/v1/messages', status: 500, error: error.message })
+          this.recordRequest({ path: '/v1/messages', model, accountId: account.id, responseTime: Date.now() - startTime, success: false, error: error.message })
           resolve()
         }
       )
@@ -912,7 +924,7 @@ export class ProxyServer {
   }
 
   // 处理 API 错误
-  private handleApiError(res: http.ServerResponse, account: { id: string }, error: Error, path: string): void {
+  private handleApiError(res: http.ServerResponse, account: { id: string }, error: Error, path: string, model?: string, startTime?: number): void {
     this.stats.failedRequests++
     const isQuotaError = error.message.includes('429') || error.message.includes('quota')
     const isAuthError = error.message.includes('401') || error.message.includes('403') || error.message.includes('Auth')
@@ -925,6 +937,7 @@ export class ProxyServer {
 
     this.sendError(res, statusCode, error.message)
     this.events.onResponse?.({ path, status: statusCode, error: error.message })
+    this.recordRequest({ path, model, accountId: account.id, responseTime: startTime ? Date.now() - startTime : 0, success: false, error: error.message })
   }
 
   // 读取请求体
@@ -941,5 +954,33 @@ export class ProxyServer {
   private sendError(res: http.ServerResponse, status: number, message: string): void {
     res.writeHead(status, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ error: { message, type: 'error', code: status } }))
+  }
+
+  // 记录请求到 recentRequests
+  private recordRequest(log: {
+    path: string
+    model?: string
+    accountId?: string
+    inputTokens?: number
+    outputTokens?: number
+    responseTime?: number
+    success: boolean
+    error?: string
+  }): void {
+    this.stats.recentRequests.push({
+      timestamp: Date.now(),
+      path: log.path,
+      model: log.model || 'unknown',
+      accountId: log.accountId || 'unknown',
+      inputTokens: log.inputTokens || 0,
+      outputTokens: log.outputTokens || 0,
+      responseTime: log.responseTime || 0,
+      success: log.success,
+      error: log.error
+    })
+    // 只保留最近 100 条
+    if (this.stats.recentRequests.length > 100) {
+      this.stats.recentRequests = this.stats.recentRequests.slice(-100)
+    }
   }
 }

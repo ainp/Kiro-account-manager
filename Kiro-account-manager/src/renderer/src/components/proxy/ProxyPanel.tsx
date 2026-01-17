@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Play, Square, RefreshCw, Copy, Check, Server, Users, Activity, AlertCircle, Globe, Zap, Loader2, FileText } from 'lucide-react'
+import { Play, Square, RefreshCw, Copy, Check, Server, Users, Activity, AlertCircle, Globe, Zap, Loader2, FileText, Eye, EyeOff } from 'lucide-react'
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, Switch, Badge, Select } from '../ui'
 import { useAccountsStore } from '../../store/accounts'
 import { useTranslation } from '../../hooks/useTranslation'
@@ -47,6 +47,7 @@ export function ProxyPanel() {
   const [syncSuccess, setSyncSuccess] = useState(false)
   const [refreshSuccess, setRefreshSuccess] = useState(false)
   const [showLogsDialog, setShowLogsDialog] = useState(false)
+  const [showApiKey, setShowApiKey] = useState(false)
 
   const accounts = useAccountsStore(state => state.accounts)
 
@@ -115,6 +116,7 @@ export function ProxyPanel() {
       const result = await window.api.proxyStart({
         port: config.port,
         host: config.host,
+        apiKey: config.apiKey,
         enableMultiAccount: config.enableMultiAccount,
         logRequests: config.logRequests
       })
@@ -372,14 +374,45 @@ export function ProxyPanel() {
           {/* API Key 配置 */}
           <div className="space-y-2">
             <Label htmlFor="apiKey">{isEn ? 'API Key (Optional)' : 'API Key (可选)'}</Label>
-            <Input
-              id="apiKey"
-              type="password"
-              placeholder={isEn ? 'Leave empty to skip auth' : '留空则不验证'}
-              value={config.apiKey || ''}
-              onChange={(e) => setConfig(prev => ({ ...prev, apiKey: e.target.value || undefined }))}
-              disabled={isRunning}
-            />
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Input
+                  id="apiKey"
+                  type={showApiKey ? 'text' : 'password'}
+                  placeholder={isEn ? 'Leave empty to skip auth' : '留空则不验证'}
+                  value={config.apiKey || ''}
+                  onChange={(e) => {
+                    const newApiKey = e.target.value || undefined
+                    setConfig(prev => ({ ...prev, apiKey: newApiKey }))
+                    window.api.proxyUpdateConfig({ apiKey: newApiKey })
+                  }}
+                  disabled={isRunning}
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                  onClick={() => setShowApiKey(!showApiKey)}
+                  title={showApiKey ? (isEn ? 'Hide' : '隐藏') : (isEn ? 'Show' : '显示')}
+                >
+                  {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+              {config.apiKey && (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => {
+                    navigator.clipboard.writeText(config.apiKey || '')
+                  }}
+                  title={isEn ? 'Copy API Key' : '复制 API Key'}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground">{isEn ? 'When set, requests must provide this key in Authorization or X-Api-Key header' : '设置后，请求需要在 Authorization 或 X-Api-Key 头中提供此密钥'}</p>
           </div>
 

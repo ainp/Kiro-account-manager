@@ -488,7 +488,7 @@ interface KiroApi {
   // ============ Kiro API 反代服务器 ============
 
   // 启动反代服务器
-  proxyStart: (config?: { port?: number; host?: string; enableMultiAccount?: boolean; logRequests?: boolean }) => Promise<{ success: boolean; port?: number; error?: string }>
+  proxyStart: (config?: { port?: number; host?: string; apiKey?: string; enableMultiAccount?: boolean; logRequests?: boolean }) => Promise<{ success: boolean; port?: number; error?: string }>
 
   // 停止反代服务器
   proxyStop: () => Promise<{ success: boolean; error?: string }>
@@ -497,7 +497,7 @@ interface KiroApi {
   proxyGetStatus: () => Promise<{ running: boolean; config: unknown; stats: unknown }>
 
   // 更新反代服务器配置
-  proxyUpdateConfig: (config: { port?: number; host?: string; enableMultiAccount?: boolean; logRequests?: boolean; autoStart?: boolean }) => Promise<{ success: boolean; config?: unknown; error?: string }>
+  proxyUpdateConfig: (config: { port?: number; host?: string; apiKey?: string; enableMultiAccount?: boolean; logRequests?: boolean; autoStart?: boolean }) => Promise<{ success: boolean; config?: unknown; error?: string }>
 
   // 添加账号到反代池
   proxyAddAccount: (account: { id: string; email?: string; accessToken: string; refreshToken?: string; profileArn?: string; expiresAt?: number }) => Promise<{ success: boolean; accountCount?: number; error?: string }>

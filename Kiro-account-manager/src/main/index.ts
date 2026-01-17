@@ -741,22 +741,48 @@ function createWindow(): void {
     mainWindow?.show()
     
     // 检查代理服务自启动配置
-    if (store) {
-      const savedProxyConfig = store.get('proxyConfig') as ProxyConfig | undefined
-      if (savedProxyConfig?.autoStart) {
+    setTimeout(async () => {
+      try {
+        await initStore()
+        if (!store) return
+        
+        const savedProxyConfig = store.get('proxyConfig') as ProxyConfig | undefined
+        if (!savedProxyConfig?.autoStart) return
+        
         console.log('[ProxyServer] Auto-starting proxy server...')
-        setTimeout(async () => {
-          try {
-            const server = initProxyServer()
-            server.updateConfig(savedProxyConfig)
-            await server.start()
-            console.log('[ProxyServer] Auto-started successfully on port', savedProxyConfig.port || 5580)
-          } catch (error) {
-            console.error('[ProxyServer] Auto-start failed:', error)
+        const server = initProxyServer()
+        server.updateConfig(savedProxyConfig)
+        
+        // 自启动时同步账号到代理池
+        const accountData = store.get('accountData') as { accounts?: Record<string, any> } | undefined
+        if (accountData?.accounts) {
+          const proxyAccounts = Object.values(accountData.accounts)
+            .filter((acc: any) => acc.status === 'active' && acc.credentials?.accessToken)
+            .map((acc: any) => ({
+              id: acc.id,
+              email: acc.email,
+              accessToken: acc.credentials.accessToken,
+              refreshToken: acc.credentials?.refreshToken,
+              profileArn: acc.profileArn,
+              expiresAt: acc.credentials?.expiresAt,
+              clientId: acc.credentials?.clientId,
+              clientSecret: acc.credentials?.clientSecret,
+              region: acc.credentials?.region || 'us-east-1',
+              authMethod: acc.credentials?.authMethod
+            }))
+          if (proxyAccounts.length > 0) {
+            const pool = server.getAccountPool()
+            proxyAccounts.forEach(acc => pool.addAccount(acc))
+            console.log('[ProxyServer] Auto-synced', proxyAccounts.length, 'accounts')
           }
-        }, 1000) // 延迟 1 秒等待渲染进程加载完成
+        }
+        
+        await server.start()
+        console.log('[ProxyServer] Auto-started successfully on port', savedProxyConfig.port || 5580)
+      } catch (error) {
+        console.error('[ProxyServer] Auto-start failed:', error)
       }
-    }
+    }, 1000)
   })
 
   mainWindow.on('close', async () => {
@@ -3208,7 +3234,9 @@ app.whenReady().then(() => {
   // IPC: 获取反代服务器状态
   ipcMain.handle('proxy-get-status', () => {
     if (!proxyServer) {
-      return { running: false, config: null, stats: null }
+      // 未初始化时从 store 读取保存的配置
+      const savedConfig = store?.get('proxyConfig') as ProxyConfig | undefined
+      return { running: false, config: savedConfig || null, stats: null }
     }
     return {
       running: proxyServer.isRunning(),
